@@ -12,7 +12,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 
-SEARCH_URL = "https://api.ydc-index.io/search"
+SEARCH_URL = "https://ydc-index.io/v1/search"
 
 
 DEMO_CITATIONS: dict[str, list[dict[str, str]]] = {
@@ -131,7 +131,7 @@ class YouComService:
 
         params: dict[str, Any] = {
             "query": query,
-            "num_web_results": max(1, min(count, 20)),
+            "count": max(1, min(count, 100)),
         }
         if freshness:
             params["freshness"] = freshness
