@@ -24,7 +24,7 @@ from backend.services.opsera_service import OpseraService  # noqa: E402
 from backend.services.youcom_service import YouComService  # noqa: E402
 
 
-IncidentType = Literal["zero_day", "supply_chain"]
+IncidentType = Literal["zero_day", "supply_chain", "custom"]
 
 SEARCH_QUERIES: dict[IncidentType, str] = {
     "zero_day": (
@@ -34,6 +34,10 @@ SEARCH_QUERIES: dict[IncidentType, str] = {
     "supply_chain": (
         "latest semiconductor export restrictions advanced chip manufacturing "
         "supply chain disruption lead times"
+    ),
+    "custom": (
+        "latest critical cybersecurity and software supply chain advisories "
+        "CISA NVD active exploitation mitigation"
     ),
 }
 
@@ -89,17 +93,30 @@ opsera = OpseraService()
 
 class IncidentRequest(BaseModel):
     incident_type: IncidentType = "zero_day"
+    custom_query: str | None = None
+
+
+class MitigationDecision(BaseModel):
+    incident_hash: str
+    decision: Literal["approved", "held"]
 
 
 def _event(name: str, data: dict) -> str:
     return f"event: {name}\ndata: {json.dumps(data, separators=(',', ':'))}\n\n"
 
 
-async def execute_incident(incident_type: IncidentType) -> dict:
+async def execute_incident(
+    incident_type: IncidentType, custom_query: str | None = None
+) -> dict:
     started = datetime.now(UTC)
+    query = (
+        custom_query.strip()
+        if incident_type == "custom" and custom_query and custom_query.strip()
+        else SEARCH_QUERIES[incident_type]
+    )
     search_result = await asyncio.to_thread(
         youcom.search,
-        SEARCH_QUERIES[incident_type],
+        query,
         scenario=incident_type,
     )
     threat_summary = await asyncio.to_thread(
@@ -147,21 +164,42 @@ def integration_status() -> dict:
 
 @app.post("/api/incidents/simulate")
 async def simulate_incident(request: IncidentRequest) -> dict:
-    return await execute_incident(request.incident_type)
+    return await execute_incident(request.incident_type, request.custom_query)
+
+
+@app.post("/api/mitigations/decision")
+async def mitigation_decision(request: MitigationDecision) -> dict:
+    return {
+        "incident_hash": request.incident_hash,
+        "decision": request.decision,
+        "status": (
+            "APPROVED_FOR_PRODUCTION"
+            if request.decision == "approved"
+            else "HELD_FOR_REVIEW"
+        ),
+        "audit_id": f"AUD-{uuid.uuid4().hex[:8].upper()}",
+        "recorded_at": datetime.now(UTC).isoformat(),
+    }
 
 
 @app.get("/api/incidents/stream")
 async def stream_incident(
     incident_type: IncidentType = Query(default="zero_day"),
+    query: str = Query(default="", max_length=280),
 ) -> StreamingResponse:
     async def events():
         yield _event("stage", STAGES["search"])
         await asyncio.sleep(0.45)
 
         started = datetime.now(UTC)
+        search_query = (
+            query.strip()
+            if incident_type == "custom" and query.strip()
+            else SEARCH_QUERIES[incident_type]
+        )
         search_result = await asyncio.to_thread(
             youcom.search,
-            SEARCH_QUERIES[incident_type],
+            search_query,
             scenario=incident_type,
         )
 

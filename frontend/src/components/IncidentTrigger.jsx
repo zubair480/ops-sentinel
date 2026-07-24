@@ -1,4 +1,11 @@
-import { AlertTriangle, Cpu, Play, RotateCcw, ShieldAlert } from "lucide-react";
+import {
+  AlertTriangle,
+  Cpu,
+  Play,
+  Radar,
+  RotateCcw,
+  ShieldAlert,
+} from "lucide-react";
 
 const incidents = [
   {
@@ -15,6 +22,13 @@ const incidents = [
     detail: "APAC hardware dependency · High",
     icon: Cpu,
   },
+  {
+    id: "custom",
+    eyebrow: "Live investigation",
+    title: "Investigate a custom signal",
+    detail: "Natural-language search · Agent-led",
+    icon: Radar,
+  },
 ];
 
 export default function IncidentTrigger({
@@ -23,6 +37,8 @@ export default function IncidentTrigger({
   onRun,
   running,
   onReset,
+  customQuery,
+  setCustomQuery,
 }) {
   return (
     <section className="trigger-card panel">
@@ -62,11 +78,26 @@ export default function IncidentTrigger({
         ))}
       </div>
 
+      {selected === "custom" && (
+        <div className="custom-query">
+          <label htmlFor="custom-incident-query">Threat signal or supply-chain concern</label>
+          <textarea
+            id="custom-incident-query"
+            value={customQuery}
+            onChange={(event) => setCustomQuery(event.target.value)}
+            placeholder="Example: Is the new npm package compromise affecting our CI runners?"
+            maxLength={280}
+            disabled={running}
+          />
+          <span>{customQuery.length}/280</span>
+        </div>
+      )}
+
       <button
         className="run-button"
         type="button"
         onClick={onRun}
-        disabled={running}
+        disabled={running || (selected === "custom" && customQuery.trim().length < 8)}
       >
         {running ? (
           <>
@@ -76,7 +107,7 @@ export default function IncidentTrigger({
         ) : (
           <>
             <Play size={16} fill="currentColor" />
-            Run autonomous response
+            {selected === "custom" ? "Investigate live signal" : "Run autonomous response"}
           </>
         )}
       </button>

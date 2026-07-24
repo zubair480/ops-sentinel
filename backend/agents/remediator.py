@@ -14,6 +14,7 @@ class RemediationPlanner:
     PIPELINE_BY_INCIDENT = {
         "zero_day": "prod-auth-service",
         "supply_chain": "edge-controller-release",
+        "custom": "security-investigation",
     }
 
     def plan(

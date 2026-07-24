@@ -13,8 +13,12 @@ works without credentials.
 
 - Two one-click scenarios: an open-source zero-day and a semiconductor supply
   disruption.
+- A free-form investigation mode for operator-supplied threat signals.
 - A live server-sent event stream that shows each agent handoff.
 - Severity, affected-component, and confidence scoring.
+- A predicted dependency blast-radius map with impact metrics.
+- A human approval/hold gate before production execution.
+- Downloadable evidence packages and device-local response history.
 - Clickable evidence cards for every material claim.
 - An auditable `PIPELINE_ROLLBACK` action with a stable incident hash.
 - A verified Opsera simulation when no production webhook is configured.
@@ -150,6 +154,13 @@ Accepted types are `zero_day` and `supply_chain`.
 ### `GET /api/incidents/stream?incident_type=zero_day`
 
 Returns `stage` and `complete` server-sent events for the execution timeline.
+
+Use `incident_type=custom&query=...` for a free-form investigation.
+
+### `POST /api/mitigations/decision`
+
+Records an `approved` or `held` operator decision against an incident hash and
+returns signed audit metadata.
 
 ## Credits needed
 

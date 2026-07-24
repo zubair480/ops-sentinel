@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertOctagon,
   CheckCircle2,
@@ -15,6 +15,7 @@ import IncidentTrigger from "./components/IncidentTrigger";
 import AgentLogStream from "./components/AgentLogStream";
 import CitationCard from "./components/CitationCard";
 import OpseraPipelineCard from "./components/OpseraPipelineCard";
+import ResponseWorkspace from "./components/ResponseWorkspace";
 
 const demoData = {
   zero_day: {
@@ -113,6 +114,39 @@ const demoData = {
   },
 };
 
+const buildDemoResult = (scenario, customQuery = "") => {
+  if (scenario !== "custom") return demoData[scenario];
+  const base = demoData.zero_day;
+  return {
+    ...base,
+    incident_id: `INC-${Math.random().toString(16).slice(2, 8).toUpperCase()}`,
+    incident_type: "custom",
+    query: customQuery,
+    threat_summary: {
+      ...base.threat_summary,
+      title: "Operator-defined threat signal investigated",
+      severity_score: 9.2,
+      severity_label: "CRITICAL",
+      confidence: 0.94,
+      summary:
+        `OpsSentinel evaluated the operator signal “${customQuery.trim()}” against ` +
+        "the available advisory evidence and mapped the likely exposure to the production dependency graph.",
+      affected_components: ["signal-under-review", "prod-auth-service", "release pipeline"],
+    },
+    opsera: {
+      request: {
+        ...base.opsera.request,
+        target_pipeline: "security-investigation",
+        incident_hash: Math.random().toString(16).slice(2, 14),
+      },
+      response: {
+        ...base.opsera.response,
+        build_id: `OPS-${Math.floor(Math.random() * 800000 + 100000)}`,
+      },
+    },
+  };
+};
+
 const stageMessages = [
   {
     kind: "search",
@@ -150,7 +184,44 @@ export default function OpsSentinelApp() {
   const [logs, setLogs] = useState([]);
   const [result, setResult] = useState(null);
   const [runCount, setRunCount] = useState(0);
+  const [customQuery, setCustomQuery] = useState(
+    "Is the latest open-source package compromise affecting our production CI runners?"
+  );
+  const [approvalState, setApprovalState] = useState("idle");
+  const [history, setHistory] = useState([]);
   const timers = useRef([]);
+
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(window.localStorage.getItem("ops-sentinel-history") || "[]");
+      if (Array.isArray(stored)) setHistory(stored.slice(0, 8));
+    } catch {
+      // Device history is optional and never blocks the response flow.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!result) return;
+    setApprovalState("pending");
+    const item = {
+      id: result.incident_id,
+      incidentType: result.incident_type || selected,
+      query: result.query || customQuery,
+      title: result.threat_summary.title,
+      severity: result.threat_summary.severity_label,
+      score: result.threat_summary.severity_score,
+      time: now(),
+    };
+    setHistory((current) => {
+      const next = [item, ...current.filter((entry) => entry.id !== item.id)].slice(0, 8);
+      try {
+        window.localStorage.setItem("ops-sentinel-history", JSON.stringify(next));
+      } catch {
+        // Private browsing can disable localStorage; the in-memory history still works.
+      }
+      return next;
+    });
+  }, [result]);
 
   const clearTimers = useCallback(() => {
     timers.current.forEach((timer) => window.clearTimeout(timer));
@@ -158,8 +229,14 @@ export default function OpsSentinelApp() {
   }, []);
 
   const finishWithDemo = useCallback(
-    (scenario, startAt = 0) => {
+    (scenario, query, startAt = 0) => {
       const remaining = stageMessages.slice(startAt);
+      if (remaining.length === 0) {
+        setResult(buildDemoResult(scenario, query));
+        setRunning(false);
+        setRunCount((count) => count + 1);
+        return;
+      }
       remaining.forEach((stage, offset) => {
         const timer = window.setTimeout(() => {
           setLogs((current) => [
@@ -167,7 +244,7 @@ export default function OpsSentinelApp() {
             { ...stage, id: `${Date.now()}-${offset}`, time: now() },
           ]);
           if (offset === remaining.length - 1) {
-            setResult(demoData[scenario]);
+            setResult(buildDemoResult(scenario, query));
             setRunning(false);
             setRunCount((count) => count + 1);
           }
@@ -183,6 +260,7 @@ export default function OpsSentinelApp() {
     setRunning(true);
     setLogs([]);
     setResult(null);
+    setApprovalState("idle");
 
     const configuredBase =
       typeof import.meta !== "undefined" ? import.meta.env?.VITE_API_BASE_URL : "";
@@ -191,13 +269,14 @@ export default function OpsSentinelApp() {
       ["localhost", "127.0.0.1"].includes(window.location.hostname);
 
     if (!configuredBase && !localBrowser) {
-      finishWithDemo(selected);
+      finishWithDemo(selected, customQuery);
       return;
     }
 
     const apiBase = configuredBase || "http://localhost:8000";
     const stream = new EventSource(
-      `${apiBase}/api/incidents/stream?incident_type=${encodeURIComponent(selected)}`
+      `${apiBase}/api/incidents/stream?incident_type=${encodeURIComponent(selected)}` +
+      `&query=${encodeURIComponent(selected === "custom" ? customQuery : "")}`
     );
     let receivedStages = 0;
 
@@ -225,16 +304,95 @@ export default function OpsSentinelApp() {
 
     stream.onerror = () => {
       stream.close();
-      finishWithDemo(selected, receivedStages);
+      finishWithDemo(selected, customQuery, receivedStages);
     };
-  }, [clearTimers, finishWithDemo, selected]);
+  }, [clearTimers, customQuery, finishWithDemo, selected]);
 
   const reset = useCallback(() => {
     clearTimers();
     setLogs([]);
     setResult(null);
     setRunning(false);
+    setApprovalState("idle");
   }, [clearTimers]);
+
+  const recordDecision = useCallback(
+    async (decision) => {
+      if (!result) return;
+      setApprovalState(decision);
+      setLogs((current) => [
+        ...current,
+        {
+          kind: "action",
+          message:
+            decision === "approved"
+              ? "Operator approved the guarded production action."
+              : "Operator placed the production action on hold for review.",
+          detail: `Decision signed · ${result.opsera.request.incident_hash}`,
+          id: `${Date.now()}-decision`,
+          time: now(),
+        },
+      ]);
+
+      const configuredBase =
+        typeof import.meta !== "undefined" ? import.meta.env?.VITE_API_BASE_URL : "";
+      const localBrowser =
+        typeof window !== "undefined" &&
+        ["localhost", "127.0.0.1"].includes(window.location.hostname);
+      if (configuredBase || localBrowser) {
+        const apiBase = configuredBase || "http://localhost:8000";
+        try {
+          await fetch(`${apiBase}/api/mitigations/decision`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              incident_hash: result.opsera.request.incident_hash,
+              decision,
+            }),
+          });
+        } catch {
+          // The signed device-side decision remains visible in demo mode.
+        }
+      }
+    },
+    [result]
+  );
+
+  const exportReport = useCallback(() => {
+    if (!result) return;
+    const report = {
+      product: "OpsSentinel",
+      exported_at: new Date().toISOString(),
+      approval_state: approvalState,
+      ...result,
+    };
+    const blob = new Blob([JSON.stringify(report, null, 2)], {
+      type: "application/json",
+    });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `ops-sentinel-${result.incident_id.toLowerCase()}.json`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  }, [approvalState, result]);
+
+  const loadHistoryItem = useCallback((item) => {
+    setSelected(item.incidentType || "zero_day");
+    if (item.incidentType === "custom") setCustomQuery(item.query || "");
+    setResult(null);
+    setApprovalState("idle");
+    setLogs([
+      {
+        kind: "search",
+        message: `Loaded ${item.id} for a fresh evidence sweep.`,
+        detail: "Historical findings are never reused without revalidation",
+        id: `${Date.now()}-history`,
+        time: now(),
+      },
+    ]);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
 
   const threat = result?.threat_summary;
   const sourceMode = result?.source_mode === "live" ? "live" : "demo";
@@ -286,6 +444,8 @@ export default function OpsSentinelApp() {
             onRun={runIncident}
             running={running}
             onReset={reset}
+            customQuery={customQuery}
+            setCustomQuery={setCustomQuery}
           />
 
           <section className="trust-card panel">
@@ -357,6 +517,15 @@ export default function OpsSentinelApp() {
         </aside>
       </div>
 
+      <ResponseWorkspace
+        result={result}
+        approvalState={approvalState}
+        onDecision={recordDecision}
+        onExport={exportReport}
+        history={history}
+        onLoadHistory={loadHistoryItem}
+      />
+
       <section className="evidence-section">
         <div className="evidence-heading">
           <div>
@@ -369,7 +538,9 @@ export default function OpsSentinelApp() {
           </p>
         </div>
         <div className="citation-grid">
-          {(result?.citations || demoData[selected].citations).map((citation, index) => (
+          {(result?.citations ||
+            demoData[selected === "supply_chain" ? "supply_chain" : "zero_day"].citations
+          ).map((citation, index) => (
             <CitationCard citation={citation} index={index} key={citation.url} />
           ))}
         </div>
