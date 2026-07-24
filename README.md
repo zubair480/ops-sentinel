@@ -113,6 +113,20 @@ Open `http://localhost:5173`.
 The dashboard will automatically use the backend on localhost. If the API is
 not running, it completes the same flow with deterministic demo data.
 
+## Deploy on Render
+
+The repository includes a `render.yaml` Blueprint and a production `Dockerfile`.
+Render builds the React dashboard and serves it from the FastAPI process, so the
+entire application uses one `onrender.com` URL.
+
+1. Push this repository to GitHub, GitLab, or Bitbucket.
+2. In Render, create a new Blueprint and select the repository.
+3. Enter `YOUCOM_API_KEY` when Render prompts for the secret.
+4. Create the free `ops-sentinel` web service and wait for `/health` to pass.
+
+The free service can spin down when idle, so allow time for a cold start before
+a judging session.
+
 ## Environment variables
 
 Copy `.env.example` to `.env`, or use the safe blank `.env` included in the

@@ -7,6 +7,7 @@ import json
 import os
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Literal
 
 from dotenv import load_dotenv
@@ -16,6 +17,7 @@ load_dotenv()
 from fastapi import FastAPI, Query  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import StreamingResponse  # noqa: E402
+from fastapi.staticfiles import StaticFiles  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 
 from backend.agents.remediator import RemediationPlanner  # noqa: E402
@@ -246,4 +248,16 @@ async def stream_incident(
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
         },
+    )
+
+
+# Render builds the Vite dashboard into frontend/dist. Mounting it last keeps
+# every API route above reachable while serving the SPA and its static assets
+# from the same HTTPS origin.
+frontend_dist = Path(__file__).resolve().parents[1] / "frontend" / "dist"
+if frontend_dist.is_dir():
+    app.mount(
+        "/",
+        StaticFiles(directory=frontend_dist, html=True),
+        name="frontend",
     )

@@ -1,0 +1,16 @@
+.git
+.github
+.openai
+.env
+.env.*
+!.env.example
+.vinext
+.wrangler
+dist
+node_modules
+frontend/dist
+frontend/node_modules
+__pycache__
+*.py[cod]
+work
+outputs

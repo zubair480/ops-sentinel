@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: ops-sentinel
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: YOUCOM_API_KEY
+        sync: false
