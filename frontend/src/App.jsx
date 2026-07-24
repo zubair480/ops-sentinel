@@ -155,8 +155,8 @@ const stageMessages = [
   },
   {
     kind: "analysis",
-    message: "Cross-referencing advisories against the production dependency graph…",
-    detail: "Threat Analyst · evidence confidence scoring",
+    message: "You.com Research is cross-referencing advisories and affected assets…",
+    detail: "Citation-grounded Threat Analyst · no paid LLM required",
   },
   {
     kind: "plan",
@@ -268,12 +268,9 @@ export default function OpsSentinelApp() {
       typeof window !== "undefined" &&
       ["localhost", "127.0.0.1"].includes(window.location.hostname);
 
-    if (!configuredBase && !localBrowser) {
-      finishWithDemo(selected, customQuery);
-      return;
-    }
-
-    const apiBase = configuredBase || "http://localhost:8000";
+    const apiBase =
+      configuredBase ||
+      (localBrowser ? "http://localhost:8000" : window.location.origin);
     const stream = new EventSource(
       `${apiBase}/api/incidents/stream?incident_type=${encodeURIComponent(selected)}` +
       `&query=${encodeURIComponent(selected === "custom" ? customQuery : "")}`
@@ -453,8 +450,8 @@ export default function OpsSentinelApp() {
               <ShieldCheck size={18} />
             </div>
             <div>
-              <strong>Demo-safe by design</strong>
-              <p>Webhook calls are simulated until an Opsera URL is configured.</p>
+              <strong>No paid LLM required</strong>
+              <p>You.com Research powers live reasoning; local evidence rules keep demos resilient.</p>
             </div>
           </section>
         </aside>

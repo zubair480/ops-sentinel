@@ -49,13 +49,13 @@ STAGES = {
     },
     "analysis": {
         "kind": "analysis",
-        "message": "Cross-referencing advisories against the production dependency graph…",
-        "detail": "Parasail inference · Agno Threat Analyst",
+        "message": "You.com Research is cross-referencing advisories and affected assets…",
+        "detail": "You.com agentic research · citation-grounded Threat Analyst",
     },
     "plan": {
         "kind": "plan",
         "message": "Building a least-blast-radius mitigation and rollback plan…",
-        "detail": "Agno Remediation Planner · policy OPS-P1",
+        "detail": "Local Remediation Agent · policy OPS-P1",
     },
     "action": {
         "kind": "action",
@@ -115,7 +115,7 @@ async def execute_incident(
         else SEARCH_QUERIES[incident_type]
     )
     search_result = await asyncio.to_thread(
-        youcom.search,
+        youcom.research,
         query,
         scenario=incident_type,
     )
@@ -157,7 +157,9 @@ def health() -> dict:
 def integration_status() -> dict:
     return {
         "youcom": "live" if bool(os.getenv("YOUCOM_API_KEY")) else "demo",
-        "parasail": "live" if bool(os.getenv("PARASAIL_API_KEY")) else "demo",
+        "reasoning": (
+            "youcom_research" if bool(os.getenv("YOUCOM_API_KEY")) else "evidence_rules"
+        ),
         "opsera": "live" if bool(os.getenv("OPSERA_WEBHOOK_URL")) else "demo",
     }
 
@@ -198,7 +200,7 @@ async def stream_incident(
             else SEARCH_QUERIES[incident_type]
         )
         search_result = await asyncio.to_thread(
-            youcom.search,
+            youcom.research,
             search_query,
             scenario=incident_type,
         )

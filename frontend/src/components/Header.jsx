@@ -9,7 +9,7 @@ import {
 
 const integrationPills = [
   { label: "You.com", icon: Search },
-  { label: "Parasail", icon: Bot },
+  { label: "Free Agent Mesh", icon: Bot },
   { label: "Opsera", icon: Braces },
 ];
 

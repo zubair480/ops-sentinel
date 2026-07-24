@@ -3,11 +3,10 @@
 OpsSentinel is a real-time autonomous incident-response and supply-chain
 sentinel built for the You.com Agentic Hackathon at AWS Builder Loft SF.
 
-It retrieves live evidence through You.com, assigns an Agno Threat Analyst to
-synthesize the finding with Parasail inference, hands the result to a
-Remediation Planner, and dispatches a guarded rollback payload to Opsera Forge.
-Every integration has a deterministic demo fallback, so the complete judge flow
-works without credentials.
+It retrieves and synthesizes live evidence through You.com Search and Research,
+hands the grounded finding to local Threat Analyst and Remediation Planner
+agents, and dispatches a guarded rollback payload to Opsera Forge. No paid LLM
+provider is required, and every integration has a deterministic fallback.
 
 ## What judges can see
 
@@ -29,9 +28,9 @@ works without credentials.
 ```text
 Browser
   └─ React dashboard
-       └─ FastAPI event stream
-            ├─ You.com Search API → normalized citations
-            ├─ Agno Threat Analyst → Parasail/OpenAI-compatible inference
+       └─ FastAPI / Cloudflare Worker event stream
+            ├─ You.com Research → agentic analysis + normalized citations
+            ├─ Threat Analyst → typed, evidence-grounded finding
             ├─ Remediation Planner → guarded rollback payload
             └─ Opsera webhook → live dispatch or verified simulation
 ```
@@ -121,10 +120,7 @@ prototype:
 
 | Variable | Purpose | Required? |
 |---|---|---|
-| `YOUCOM_API_KEY` | Live You.com Search API retrieval | No; demo citations are used |
-| `PARASAIL_API_KEY` | Live OpenAI-compatible inference via Agno | No; deterministic analysis is used |
-| `PARASAIL_MODEL` | Parasail model identifier | No; defaults to `parasail-deepseek-r1` |
-| `PARASAIL_BASE_URL` | Parasail inference base URL | No |
+| `YOUCOM_API_KEY` | Live You.com Search and agentic Research | No; evidence rules and demo citations are used |
 | `OPSERA_WEBHOOK_URL` | Live Opsera/Forge trigger endpoint | No; verified simulation is used |
 | `OPSERA_API_TOKEN` | Optional bearer token for the webhook | No |
 | `FRONTEND_ORIGINS` | Comma-separated FastAPI CORS allowlist | No |
@@ -139,7 +135,8 @@ Liveness check.
 
 ### `GET /api/status`
 
-Reports whether You.com, Parasail, and Opsera are live or in demo mode.
+Reports whether You.com Research, local reasoning, and Opsera are live or in
+safe fallback mode.
 
 ### `POST /api/incidents/simulate`
 
@@ -164,14 +161,11 @@ returns signed audit metadata.
 
 ## Credits needed
 
-None are needed for the polished demo flow. For a fully live hackathon run,
-provision:
-
-1. A You.com API key with enough Search API requests for the judging session.
-2. A Parasail API key with modest serverless inference credit, or an OpenAI key
-   if you adapt the compatible model configuration.
-3. An Opsera sandbox webhook/agent endpoint. Use a non-production pipeline for
-   judging.
+No paid LLM credits are needed. The live intelligence path uses the
+complimentary You.com API credits already included with a new platform account.
+Without a key, the same judge flow runs with labeled evidence rules and verified
+demo citations. An Opsera sandbox webhook remains optional; without it, the
+dashboard returns a verified simulation.
 
 AWS credits are not required to run the local prototype.
 
@@ -180,5 +174,5 @@ AWS credits are not required to run the local prototype.
 - Missing credentials never cause a destructive action.
 - Live Opsera calls use an idempotency key derived from the incident.
 - Production actions retain a human-approval guardrail in the payload.
-- Search and inference failures degrade to labeled demo mode.
+- Research failures degrade to live Search plus labeled evidence rules.
 - URLs are validated before being exposed as clickable citations.

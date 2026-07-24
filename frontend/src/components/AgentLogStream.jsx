@@ -10,8 +10,8 @@ import {
 
 const meta = {
   search: { icon: Search, label: "YOU.COM SEARCH", tone: "cyan" },
-  analysis: { icon: Bot, label: "PARASAIL · THREAT ANALYST", tone: "violet" },
-  plan: { icon: GitPullRequestArrow, label: "AGNO · REMEDIATION", tone: "amber" },
+  analysis: { icon: Bot, label: "YOU.COM RESEARCH · THREAT ANALYST", tone: "violet" },
+  plan: { icon: GitPullRequestArrow, label: "LOCAL AGENT · REMEDIATION", tone: "amber" },
   action: { icon: Check, label: "OPSERA FORGE", tone: "green" },
 };
 

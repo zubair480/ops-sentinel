@@ -1,58 +1,25 @@
-"""Threat Analyst agent: evidence synthesis with optional Parasail inference."""
+"""Threat Analyst agent: You.com Research synthesis with free local fallback."""
 
 from __future__ import annotations
 
-import json
-import os
-import re
 from typing import Any
 
 
 class ThreatAnalyst:
     """Convert normalized citations into a source-grounded threat assessment."""
 
-    def __init__(self) -> None:
-        self.api_key = os.getenv("PARASAIL_API_KEY", "")
-        self.model_id = os.getenv("PARASAIL_MODEL", "parasail-deepseek-r1")
-        self.base_url = os.getenv("PARASAIL_BASE_URL", "https://api.parasail.io/v1")
-
     def analyze(
         self, incident_type: str, search_result: dict[str, Any]
     ) -> dict[str, Any]:
         baseline = self._baseline(incident_type, search_result["citations"])
-        if not self.api_key:
-            baseline["inference_mode"] = "deterministic_demo"
-            return baseline
-
-        try:
-            from agno.agent import Agent
-            from agno.models.openai.like import OpenAILike
-
-            model = OpenAILike(
-                id=self.model_id,
-                api_key=self.api_key,
-                base_url=self.base_url,
-            )
-            agent = Agent(
-                name="OpsSentinel Threat Analyst",
-                role="Cybersecurity and supply-chain threat intelligence analyst",
-                model=model,
-                instructions=[
-                    "Use only the supplied citation evidence.",
-                    "Never invent URLs, CVEs, affected versions, or vendors.",
-                    "Return compact valid JSON and no markdown.",
-                ],
-            )
-            response = agent.run(self._prompt(incident_type, search_result))
-            content = getattr(response, "content", response)
-            parsed = self._parse_json(str(content))
-            merged = self._merge_validated(parsed, baseline)
-            merged["inference_mode"] = "parasail_agno"
+        analysis = search_result.get("analysis")
+        if isinstance(analysis, dict):
+            merged = self._merge_validated(analysis, baseline)
+            merged["inference_mode"] = "youcom_research"
             return merged
-        except Exception as exc:  # Provider failure must not derail a live demo.
-            baseline["inference_mode"] = "deterministic_fallback"
-            baseline["inference_fallback"] = type(exc).__name__
-            return baseline
+
+        baseline["inference_mode"] = "evidence_rules"
+        return baseline
 
     @staticmethod
     def _baseline(
@@ -103,32 +70,6 @@ class ThreatAnalyst:
             "confidence": 0.98,
             "evidence": evidence,
         }
-
-    @staticmethod
-    def _prompt(incident_type: str, search_result: dict[str, Any]) -> str:
-        schema = {
-            "title": "short incident title",
-            "severity_score": "number from 0 to 10",
-            "severity_label": "LOW | MEDIUM | HIGH | CRITICAL",
-            "summary": "two evidence-grounded sentences",
-            "affected_components": ["component names"],
-            "confidence": "number from 0 to 1",
-        }
-        return (
-            f"Incident type: {incident_type}\n"
-            f"Evidence: {json.dumps(search_result['citations'])}\n"
-            f"Return this JSON shape: {json.dumps(schema)}"
-        )
-
-    @staticmethod
-    def _parse_json(content: str) -> dict[str, Any]:
-        fenced = re.search(r"\{.*\}", content, flags=re.DOTALL)
-        if not fenced:
-            raise ValueError("Agent response did not contain JSON")
-        parsed = json.loads(fenced.group(0))
-        if not isinstance(parsed, dict):
-            raise ValueError("Agent response was not an object")
-        return parsed
 
     @staticmethod
     def _merge_validated(

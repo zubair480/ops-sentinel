@@ -13,6 +13,7 @@ from urllib3.util.retry import Retry
 
 
 SEARCH_URL = "https://ydc-index.io/v1/search"
+RESEARCH_URL = "https://api.you.com/v1/research"
 
 
 DEMO_CITATIONS: dict[str, list[dict[str, str]]] = {
@@ -90,7 +91,7 @@ DEMO_CITATIONS: dict[str, list[dict[str, str]]] = {
 
 
 class YouComService:
-    """Search You.com's live index and return only verifiable web citations."""
+    """Search and reason over You.com's live index with verifiable citations."""
 
     def __init__(
         self,
@@ -166,14 +167,143 @@ class YouComService:
     def research(
         self, query: str, *, scenario: str = "zero_day", count: int = 8
     ) -> dict[str, Any]:
-        """Research-oriented retrieval using a broader live Search API result set."""
+        """Run You.com's agentic Research API with a typed threat schema.
 
-        return self.search(
-            query,
-            count=count,
-            freshness=None,
-            scenario=scenario,
+        Research is the primary no-card inference path. If the API is
+        unavailable, this falls back to live Search and the local evidence
+        rules so an incident run always completes.
+        """
+
+        if not self.api_key:
+            return self._demo_result(query, scenario, "YOUCOM_API_KEY is unset")
+
+        schema = {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string"},
+                "severity_score": {"type": "number"},
+                "severity_label": {
+                    "type": "string",
+                    "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+                },
+                "summary": {"type": "string"},
+                "affected_components": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+                "confidence": {"type": "number"},
+            },
+            "required": [
+                "title",
+                "severity_score",
+                "severity_label",
+                "summary",
+                "affected_components",
+                "confidence",
+            ],
+            "additionalProperties": False,
+        }
+        incident_context = {
+            "zero_day": (
+                "Prioritize active exploitation, affected package versions, "
+                "CISA/NVD/vendor evidence, and immediate containment."
+            ),
+            "supply_chain": (
+                "Prioritize confirmed policy or logistics disruption, affected "
+                "suppliers or components, lead-time risk, and mitigations."
+            ),
+            "custom": (
+                "Evaluate the operator-defined signal without inventing CVEs, "
+                "vendors, affected versions, or infrastructure."
+            ),
+        }.get(scenario, "")
+        prompt = (
+            "Act as the OpsSentinel Threat Analyst. Produce a compact, factual "
+            "incident assessment grounded only in sources you can cite. "
+            f"{incident_context} Query: {query}"
         )
+
+        try:
+            response = self.session.post(
+                RESEARCH_URL,
+                headers={
+                    "X-API-Key": self.api_key,
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "User-Agent": "OpsSentinel/1.0",
+                },
+                json={
+                    "input": prompt,
+                    "research_effort": "standard",
+                    "output_schema": schema,
+                },
+                timeout=max(self.timeout_seconds, 45.0),
+            )
+            response.raise_for_status()
+            payload = response.json()
+            output = payload.get("output", {})
+            analysis = output.get("content")
+            sources = output.get("sources", [])
+            if not isinstance(analysis, dict):
+                raise ValueError("Research API did not return structured analysis")
+            citations = self._extract_research_citations(sources)[:count]
+            if not citations:
+                raise ValueError("Research API returned no usable citations")
+            return {
+                "query": query,
+                "citations": citations,
+                "analysis": analysis,
+                "source_mode": "live",
+                "reasoning_mode": "youcom_research",
+            }
+        except (requests.RequestException, ValueError, TypeError) as exc:
+            fallback = self.search(
+                query,
+                count=count,
+                freshness=None,
+                scenario=scenario,
+            )
+            fallback["reasoning_mode"] = "evidence_rules"
+            fallback["research_fallback_reason"] = (
+                f"Research unavailable: {type(exc).__name__}"
+            )
+            return fallback
+
+    @classmethod
+    def _extract_research_citations(
+        cls, sources: Any
+    ) -> list[dict[str, str]]:
+        if not isinstance(sources, list):
+            return []
+        citations: list[dict[str, str]] = []
+        seen_urls: set[str] = set()
+        for source in sources:
+            if not isinstance(source, dict):
+                continue
+            url = cls._first_text(source, "url", "link")
+            title = cls._first_text(source, "title", "name")
+            snippets = source.get("snippets")
+            if isinstance(snippets, list):
+                snippet = " ".join(
+                    str(value).strip() for value in snippets if str(value).strip()
+                )
+            else:
+                snippet = cls._first_text(
+                    source, "snippet", "description", "summary", "text"
+                )
+            if not cls._is_web_url(url) or url in seen_urls:
+                continue
+            seen_urls.add(url)
+            citations.append(
+                {
+                    "title": (title or urlparse(url).netloc).strip()[:240],
+                    "url": url.strip(),
+                    "snippet": (
+                        snippet or "Open the source to verify this finding."
+                    ).strip()[:700],
+                }
+            )
+        return citations
 
     def _demo_result(
         self, query: str, scenario: str, reason: str
