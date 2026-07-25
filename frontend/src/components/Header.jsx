@@ -36,7 +36,7 @@ export default function Header({
         <div>
           <div className="brand-row">
             <span className="brand-name">OpsSentinel</span>
-            <span className="version-chip">v1.0</span>
+            <span className="version-chip">v1.2</span>
           </div>
           <p>Autonomous incident response</p>
         </div>

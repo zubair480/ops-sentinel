@@ -16,6 +16,11 @@ const meta = {
 };
 
 export default function AgentLogStream({ logs, running }) {
+  const completedStages = logs.filter((log) =>
+    ["search", "analysis", "plan", "action"].includes(log.kind)
+  ).length;
+  const progress = Math.min((completedStages / 4) * 100, 100);
+
   return (
     <section className="stream-card panel">
       <div className="panel-heading">
@@ -29,12 +34,22 @@ export default function AgentLogStream({ logs, running }) {
         </span>
       </div>
 
+      <div className="stream-progress" aria-label={`${progress}% response progress`}>
+        <span style={{ width: `${progress}%` }} />
+        <small>{completedStages}/4 agent handoffs</small>
+      </div>
+
       <div className="stream-body" aria-live="polite">
         {logs.length === 0 ? (
           <div className="empty-stream">
             <CircleDashed size={27} />
             <strong>Sentinel is watching</strong>
             <span>Choose a scenario to observe the agent handoffs.</span>
+            <div className="standby-checks">
+              <span><Check size={10} /> Evidence route ready</span>
+              <span><Check size={10} /> Policy OPS-P1 loaded</span>
+              <span><Check size={10} /> Audit session open</span>
+            </div>
           </div>
         ) : (
           <ol className="timeline">

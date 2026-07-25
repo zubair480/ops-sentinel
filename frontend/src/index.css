@@ -2,12 +2,12 @@
 
 :root {
   color-scheme: dark;
-  --bg: #080b12;
-  --bg-elevated: #0d121d;
-  --panel: rgba(17, 24, 38, 0.82);
-  --panel-strong: rgba(20, 28, 44, 0.96);
-  --line: rgba(132, 149, 177, 0.14);
-  --line-strong: rgba(132, 149, 177, 0.24);
+  --bg: #060a11;
+  --bg-elevated: #0c1320;
+  --panel: rgba(15, 23, 38, 0.88);
+  --panel-strong: rgba(20, 30, 48, 0.98);
+  --line: rgba(142, 161, 193, 0.16);
+  --line-strong: rgba(142, 161, 193, 0.3);
   --text: #f4f7fb;
   --muted: #8692a7;
   --cyan: #33d6db;
@@ -61,7 +61,24 @@ a:focus-visible {
 }
 
 .app-shell {
+  isolation: isolate;
   min-height: 100vh;
+  overflow: hidden;
+  position: relative;
+}
+
+.app-shell::before {
+  background-image:
+    linear-gradient(rgba(93, 118, 151, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(93, 118, 151, 0.025) 1px, transparent 1px);
+  background-size: 42px 42px;
+  content: "";
+  inset: 0;
+  mask-image: linear-gradient(to bottom, black, transparent 78%);
+  opacity: 0.65;
+  pointer-events: none;
+  position: absolute;
+  z-index: -1;
 }
 
 .topbar {
@@ -1994,6 +2011,568 @@ footer small {
   text-transform: uppercase;
 }
 
+/* Presentation-grade UI scale and hierarchy */
+.topbar {
+  background: rgba(6, 10, 17, 0.9);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.24);
+  min-height: 78px;
+}
+
+.brand-mark {
+  border-radius: 12px;
+  height: 42px;
+  width: 42px;
+}
+
+.brand-name {
+  font-size: 17px;
+}
+
+.brand-lockup p {
+  font-size: 9px;
+}
+
+.version-chip {
+  font-size: 9px;
+  padding: 4px 7px;
+}
+
+.header-center {
+  background: rgba(12, 19, 31, 0.72);
+  border-color: rgba(142, 161, 193, 0.19);
+  border-radius: 12px;
+  padding: 5px;
+}
+
+.integration-pill {
+  font-size: 11px;
+  gap: 7px;
+  padding: 8px 11px;
+}
+
+.integration-pill small {
+  background: rgba(255, 255, 255, 0.035);
+  border-radius: 4px;
+  font-size: 7px;
+  padding: 2px 4px;
+}
+
+.system-state span {
+  font-size: 12px;
+}
+
+.system-state small {
+  font-size: 10px;
+}
+
+.state-orb {
+  height: 38px;
+  width: 38px;
+}
+
+.command-strip {
+  gap: 36px;
+  max-width: 1640px;
+  padding-bottom: 28px;
+  padding-top: 31px;
+}
+
+.command-icon {
+  height: 42px;
+  width: 42px;
+}
+
+.command-title span {
+  font-size: 10px;
+}
+
+.command-title h1 {
+  font-size: clamp(24px, 2.4vw, 34px);
+  margin-top: 4px;
+}
+
+.command-stats {
+  background: linear-gradient(135deg, rgba(20, 31, 49, 0.78), rgba(12, 19, 31, 0.7));
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+.command-stats div {
+  min-width: 116px;
+  padding: 12px 20px;
+}
+
+.command-stats span {
+  font-size: 9px;
+}
+
+.command-stats strong {
+  font-size: 15px;
+  margin-top: 5px;
+}
+
+.watching-state strong {
+  font-size: 12px;
+}
+
+.watching-state small {
+  font-size: 10px;
+}
+
+.radar {
+  height: 40px;
+  width: 40px;
+}
+
+.dashboard-grid {
+  gap: 18px;
+  grid-template-columns: minmax(280px, 0.86fr) minmax(500px, 1.62fr) minmax(300px, 0.92fr);
+  max-width: 1640px;
+  padding-bottom: 20px;
+  padding-top: 22px;
+}
+
+.left-rail,
+.main-stage,
+.right-rail {
+  gap: 18px;
+}
+
+.panel {
+  background:
+    linear-gradient(145deg, rgba(18, 28, 46, 0.94), rgba(11, 18, 30, 0.9));
+  border-color: rgba(142, 161, 193, 0.17);
+  border-radius: 16px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.025),
+    0 20px 64px rgba(0, 0, 0, 0.19);
+}
+
+.trigger-card,
+.stream-card,
+.opsera-card,
+.finding-card {
+  padding: 22px;
+}
+
+.section-kicker {
+  font-size: 9px;
+  margin-bottom: 7px;
+}
+
+.panel-heading h2,
+.finding-header h2,
+.evidence-heading h2 {
+  font-size: 17px;
+}
+
+.panel-copy {
+  font-size: 12px;
+  margin: 17px 0;
+}
+
+.incident-options {
+  gap: 10px;
+}
+
+.incident-option {
+  border-radius: 12px;
+  gap: 12px;
+  padding: 14px;
+}
+
+.incident-option.selected {
+  background: linear-gradient(90deg, rgba(51, 214, 219, 0.09), rgba(51, 214, 219, 0.025));
+  border-color: rgba(51, 214, 219, 0.42);
+  box-shadow:
+    inset 3px 0 0 var(--cyan),
+    0 8px 26px rgba(51, 214, 219, 0.045);
+}
+
+.incident-icon {
+  border-radius: 10px;
+  height: 39px;
+  width: 39px;
+}
+
+.incident-option small {
+  font-size: 8px;
+}
+
+.incident-option strong {
+  font-size: 12px;
+}
+
+.incident-option em {
+  font-size: 9px;
+}
+
+.radio-mark {
+  height: 15px;
+  width: 15px;
+}
+
+.run-button {
+  background: linear-gradient(115deg, #36d9de, #4cdaa1);
+  border-radius: 11px;
+  box-shadow: 0 10px 30px rgba(51, 214, 219, 0.12);
+  font-size: 12px;
+  margin-top: 15px;
+  min-height: 48px;
+}
+
+.reset-button {
+  font-size: 9px;
+}
+
+.trust-card {
+  padding: 16px;
+}
+
+.trust-card strong {
+  font-size: 11px;
+}
+
+.trust-card p {
+  font-size: 10px;
+}
+
+.stream-card,
+.opsera-card {
+  min-height: 448px;
+}
+
+.live-chip,
+.forge-state {
+  font-size: 9px;
+  padding: 6px 9px;
+}
+
+.stream-progress {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.018);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  display: flex;
+  height: 22px;
+  margin-top: 15px;
+  overflow: hidden;
+  position: relative;
+}
+
+.stream-progress > span {
+  background: linear-gradient(90deg, var(--cyan), var(--violet));
+  border-radius: inherit;
+  bottom: 0;
+  box-shadow: 0 0 18px rgba(51, 214, 219, 0.3);
+  left: 0;
+  position: absolute;
+  top: 0;
+  transition: width 350ms ease;
+}
+
+.stream-progress small {
+  color: #98a7bc;
+  font-family: var(--font-mono);
+  font-size: 7px;
+  margin-left: auto;
+  padding: 0 9px;
+  position: relative;
+  z-index: 1;
+}
+
+.stream-body {
+  height: 345px;
+  margin-top: 13px;
+}
+
+.empty-stream strong {
+  font-size: 13px;
+}
+
+.empty-stream span {
+  font-size: 10px;
+}
+
+.standby-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  justify-content: center;
+  margin-top: 18px;
+}
+
+.standby-checks span {
+  align-items: center;
+  background: rgba(76, 218, 161, 0.035);
+  border: 1px solid rgba(76, 218, 161, 0.12);
+  border-radius: 999px;
+  color: #6e9b88;
+  display: flex;
+  font-family: var(--font-mono);
+  font-size: 7px;
+  gap: 4px;
+  padding: 5px 7px;
+}
+
+.timeline-item {
+  gap: 14px;
+  grid-template-columns: 34px 1fr;
+  min-height: 82px;
+}
+
+.timeline-icon {
+  border-radius: 9px;
+  height: 34px;
+  width: 34px;
+}
+
+.timeline-content {
+  border-radius: 11px;
+  padding: 12px 13px;
+}
+
+.timeline-meta > span,
+.timeline-meta time {
+  font-size: 8px;
+}
+
+.run-correlation {
+  font-size: 7px;
+}
+
+.timeline-content p {
+  font-size: 12px;
+}
+
+.timeline-content small {
+  font-size: 9px;
+}
+
+.finding-card {
+  min-height: 164px;
+}
+
+.finding-summary {
+  font-size: 12px;
+}
+
+.component-row > span,
+.component-row em,
+.severity-score span {
+  font-size: 8px;
+}
+
+.severity-score strong {
+  font-size: 14px;
+}
+
+.finding-placeholder {
+  font-size: 11px;
+}
+
+.pipeline-flow {
+  margin: 26px 0 21px;
+}
+
+.flow-node {
+  font-size: 8px;
+}
+
+.flow-node svg {
+  padding: 9px;
+}
+
+.payload-title {
+  font-size: 8px;
+  padding: 10px 12px;
+}
+
+.payload-window pre {
+  font-size: 9px;
+  padding: 14px;
+}
+
+.forge-footer div {
+  padding: 10px;
+}
+
+.forge-footer span {
+  font-size: 7px;
+}
+
+.forge-footer strong {
+  font-size: 8px;
+}
+
+.audit-line {
+  padding: 15px 16px;
+}
+
+.audit-line strong {
+  font-size: 10px;
+}
+
+.audit-line span {
+  font-size: 9px;
+}
+
+.dossier-section,
+.response-workspace,
+.evidence-section {
+  max-width: 1640px;
+  padding-top: 32px;
+}
+
+.workspace-heading h2,
+.evidence-heading h2 {
+  font-size: 20px;
+}
+
+.workspace-summary span {
+  font-size: 8px;
+  padding: 6px 9px;
+}
+
+.dossier-grid,
+.workspace-grid,
+.citation-grid {
+  gap: 16px;
+}
+
+.dossier-card {
+  min-height: 235px;
+  padding: 20px;
+}
+
+.dossier-title span,
+.dossier-facts dt,
+.domain-cloud span,
+.risk-tags span,
+.policy-checks span {
+  font-size: 7px;
+}
+
+.dossier-title strong {
+  font-size: 12px;
+}
+
+.dossier-facts dd {
+  font-size: 9px;
+}
+
+.indicator-list > span,
+.indicator-list small,
+.playbook-steps p {
+  font-size: 10px;
+}
+
+.indicator-list em {
+  font-size: 7px;
+}
+
+.dossier-empty {
+  font-size: 10px;
+}
+
+.blast-card,
+.approval-card,
+.history-card {
+  padding: 20px;
+}
+
+.blast-source strong,
+.blast-node strong,
+.impact-metrics strong {
+  font-size: 10px;
+}
+
+.blast-source small,
+.blast-node small {
+  font-size: 8px;
+}
+
+.blast-node em,
+.impact-metrics span {
+  font-size: 7px;
+}
+
+.approval-card h2 {
+  font-size: 13px;
+}
+
+.approval-card > p {
+  font-size: 10px;
+}
+
+.approval-actions button,
+.report-card > button {
+  font-size: 9px;
+  min-height: 38px;
+}
+
+.approval-audit {
+  font-size: 7px;
+}
+
+.report-copy strong {
+  font-size: 10px;
+}
+
+.report-copy small {
+  font-size: 8px;
+}
+
+.history-list strong {
+  font-size: 9px;
+}
+
+.history-list small {
+  font-size: 7px;
+}
+
+.history-empty {
+  font-size: 9px;
+}
+
+.citation-card {
+  background: linear-gradient(145deg, rgba(18, 28, 46, 0.82), rgba(11, 18, 30, 0.72));
+  border-radius: 14px;
+  min-height: 195px;
+  padding: 19px;
+}
+
+.source-index,
+.verified-badge,
+.citation-host {
+  font-size: 8px;
+}
+
+.citation-card h3 {
+  font-size: 13px;
+  margin-top: 18px;
+}
+
+.citation-card p,
+.evidence-heading p {
+  font-size: 10px;
+}
+
+footer {
+  font-size: 9px;
+  max-width: 1544px;
+  padding-bottom: 30px;
+  padding-top: 21px;
+}
+
+footer span {
+  font-size: 10px;
+}
+
+footer small {
+  font-size: 8px;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -2189,19 +2768,19 @@ footer small {
   }
 
   .command-stats span {
-    font-size: 6px;
+    font-size: 8px;
   }
 
   .command-stats strong {
-    font-size: 10px;
+    font-size: 12px;
   }
 
   .stream-card {
-    min-height: 410px;
+    min-height: 430px;
   }
 
   .stream-body {
-    height: 340px;
+    height: 315px;
   }
 
   .finding-header {
