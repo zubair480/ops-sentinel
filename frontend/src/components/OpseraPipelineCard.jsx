@@ -15,6 +15,7 @@ export default function OpseraPipelineCard({ opsera, running }) {
     incident_hash: "awaiting-incident",
   };
   const response = opsera?.response;
+  const isLive = response?.mode === "live";
 
   return (
     <section className="opsera-card panel">
@@ -25,7 +26,7 @@ export default function OpseraPipelineCard({ opsera, running }) {
         </div>
         <span className={`forge-state ${response ? "triggered" : ""}`}>
           <i />
-          {response ? "Triggered" : running ? "Preparing" : "Armed"}
+          {response ? (isLive ? "Triggered" : "Simulated") : running ? "Preparing" : "Armed"}
         </span>
       </div>
 
@@ -74,11 +75,11 @@ export default function OpseraPipelineCard({ opsera, running }) {
         </div>
         <div>
           <span>Change control</span>
-          <strong>{response ? "PR staged" : "Pending"}</strong>
+          <strong>{response ? (isLive ? "PR staged" : "Payload staged") : "Pending"}</strong>
         </div>
         <div>
           <span>Mode</span>
-          <strong>{response?.mode === "live" ? "Live" : "Verified demo"}</strong>
+          <strong>{isLive ? "Live" : "Safe demo"}</strong>
         </div>
       </div>
     </section>

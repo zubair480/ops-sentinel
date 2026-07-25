@@ -8,12 +8,25 @@ import {
 } from "lucide-react";
 
 const integrationPills = [
-  { label: "You.com", icon: Search },
-  { label: "Free Agent Mesh", icon: Bot },
-  { label: "Opsera", icon: Braces },
+  { label: "You.com", icon: Search, statusKey: "youcom" },
+  { label: "Agent Mesh", icon: Bot, statusKey: "reasoning" },
+  { label: "Opsera", icon: Braces, statusKey: "opsera" },
 ];
 
-export default function Header({ running, sourceMode = "demo" }) {
+const displayMode = (value) => {
+  if (value === "live" || value === "youcom_research") return "LIVE";
+  if (value === "checking") return "CHECK";
+  if (value === "demo" || value === "evidence_rules" || value === "fallback") {
+    return "DEMO";
+  }
+  return "OFF";
+};
+
+export default function Header({
+  running,
+  sourceMode = "demo",
+  integrationStatus = {},
+}) {
   return (
     <header className="topbar">
       <div className="brand-lockup">
@@ -30,11 +43,16 @@ export default function Header({ running, sourceMode = "demo" }) {
       </div>
 
       <div className="header-center" aria-label="Integration status">
-        {integrationPills.map(({ label, icon: Icon }) => (
+        {integrationPills.map(({ label, icon: Icon, statusKey }) => (
           <div className="integration-pill" key={label}>
             <Icon size={13} aria-hidden="true" />
             <span>{label}</span>
-            <i className="status-dot" />
+            <small>{displayMode(integrationStatus[statusKey])}</small>
+            <i
+              className={`status-dot mode-${displayMode(
+                integrationStatus[statusKey]
+              ).toLowerCase()}`}
+            />
           </div>
         ))}
       </div>

@@ -178,6 +178,21 @@ const now = () =>
     hour12: false,
   }).format(new Date());
 
+const getApiBase = () => {
+  const configuredBase =
+    typeof import.meta !== "undefined" ? import.meta.env?.VITE_API_BASE_URL : "";
+  const localBrowser =
+    typeof window !== "undefined" &&
+    ["localhost", "127.0.0.1"].includes(window.location.hostname);
+  return configuredBase || (localBrowser ? "http://localhost:8000" : window.location.origin);
+};
+
+const formatElapsed = (elapsedMs) => {
+  if (!Number.isFinite(elapsedMs)) return "—";
+  if (elapsedMs < 1000) return `${elapsedMs}ms`;
+  return `${(elapsedMs / 1000).toFixed(1)}s`;
+};
+
 export default function OpsSentinelApp() {
   const [selected, setSelected] = useState("zero_day");
   const [running, setRunning] = useState(false);
@@ -188,8 +203,38 @@ export default function OpsSentinelApp() {
     "Is the latest open-source package compromise affecting our production CI runners?"
   );
   const [approvalState, setApprovalState] = useState("idle");
+  const [approvalReceipt, setApprovalReceipt] = useState(null);
   const [history, setHistory] = useState([]);
+  const [integrationStatus, setIntegrationStatus] = useState({
+    youcom: "checking",
+    reasoning: "checking",
+    opsera: "checking",
+  });
   const timers = useRef([]);
+
+  useEffect(() => {
+    let active = true;
+    fetch(`${getApiBase()}/api/status`)
+      .then((response) => {
+        if (!response.ok) throw new Error(`Status request failed: ${response.status}`);
+        return response.json();
+      })
+      .then((status) => {
+        if (active) setIntegrationStatus(status);
+      })
+      .catch(() => {
+        if (active) {
+          setIntegrationStatus({
+            youcom: "unavailable",
+            reasoning: "fallback",
+            opsera: "unavailable",
+          });
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     try {
@@ -261,16 +306,9 @@ export default function OpsSentinelApp() {
     setLogs([]);
     setResult(null);
     setApprovalState("idle");
+    setApprovalReceipt(null);
 
-    const configuredBase =
-      typeof import.meta !== "undefined" ? import.meta.env?.VITE_API_BASE_URL : "";
-    const localBrowser =
-      typeof window !== "undefined" &&
-      ["localhost", "127.0.0.1"].includes(window.location.hostname);
-
-    const apiBase =
-      configuredBase ||
-      (localBrowser ? "http://localhost:8000" : window.location.origin);
+    const apiBase = getApiBase();
     const stream = new EventSource(
       `${apiBase}/api/incidents/stream?incident_type=${encodeURIComponent(selected)}` +
       `&query=${encodeURIComponent(selected === "custom" ? customQuery : "")}`
@@ -311,12 +349,14 @@ export default function OpsSentinelApp() {
     setResult(null);
     setRunning(false);
     setApprovalState("idle");
+    setApprovalReceipt(null);
   }, [clearTimers]);
 
   const recordDecision = useCallback(
     async (decision) => {
       if (!result) return;
       setApprovalState(decision);
+      setApprovalReceipt(null);
       setLogs((current) => [
         ...current,
         {
@@ -331,25 +371,33 @@ export default function OpsSentinelApp() {
         },
       ]);
 
-      const configuredBase =
-        typeof import.meta !== "undefined" ? import.meta.env?.VITE_API_BASE_URL : "";
-      const localBrowser =
-        typeof window !== "undefined" &&
-        ["localhost", "127.0.0.1"].includes(window.location.hostname);
-      if (configuredBase || localBrowser) {
-        const apiBase = configuredBase || "http://localhost:8000";
-        try {
-          await fetch(`${apiBase}/api/mitigations/decision`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              incident_hash: result.opsera.request.incident_hash,
-              decision,
-            }),
-          });
-        } catch {
-          // The signed device-side decision remains visible in demo mode.
-        }
+      try {
+        const response = await fetch(`${getApiBase()}/api/mitigations/decision`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            incident_hash: result.opsera.request.incident_hash,
+            decision,
+          }),
+        });
+        if (!response.ok) throw new Error(`Decision request failed: ${response.status}`);
+        const receipt = await response.json();
+        setApprovalReceipt(receipt);
+        setLogs((current) => [
+          ...current,
+          {
+            kind: "action",
+            message: `Audit receipt ${receipt.audit_id} recorded.`,
+            detail: `${receipt.status} · ${receipt.recorded_at}`,
+            id: `${Date.now()}-audit`,
+            time: now(),
+          },
+        ]);
+      } catch {
+        setApprovalReceipt({
+          status: "LOCAL_ONLY",
+          audit_id: "Network unavailable",
+        });
       }
     },
     [result]
@@ -361,6 +409,7 @@ export default function OpsSentinelApp() {
       product: "OpsSentinel",
       exported_at: new Date().toISOString(),
       approval_state: approvalState,
+      approval_receipt: approvalReceipt,
       ...result,
     };
     const blob = new Blob([JSON.stringify(report, null, 2)], {
@@ -372,13 +421,14 @@ export default function OpsSentinelApp() {
     link.download = `ops-sentinel-${result.incident_id.toLowerCase()}.json`;
     link.click();
     window.URL.revokeObjectURL(url);
-  }, [approvalState, result]);
+  }, [approvalReceipt, approvalState, result]);
 
   const loadHistoryItem = useCallback((item) => {
     setSelected(item.incidentType || "zero_day");
     if (item.incidentType === "custom") setCustomQuery(item.query || "");
     setResult(null);
     setApprovalState("idle");
+    setApprovalReceipt(null);
     setLogs([
       {
         kind: "search",
@@ -392,11 +442,21 @@ export default function OpsSentinelApp() {
   }, []);
 
   const threat = result?.threat_summary;
-  const sourceMode = result?.source_mode === "live" ? "live" : "demo";
+  const sourceMode = result
+    ? result.source_mode === "live"
+      ? "live"
+      : "demo"
+    : integrationStatus.youcom === "live"
+      ? "live"
+      : "demo";
 
   return (
     <main className="app-shell">
-      <Header running={running} sourceMode={sourceMode} />
+      <Header
+        running={running}
+        sourceMode={sourceMode}
+        integrationStatus={integrationStatus}
+      />
 
       <div className="command-strip">
         <div className="command-title">
@@ -411,7 +471,7 @@ export default function OpsSentinelApp() {
         <div className="command-stats">
           <div>
             <span>Time to contain</span>
-            <strong>{result ? "02m 41s" : "—"}</strong>
+            <strong>{formatElapsed(result?.telemetry?.elapsed_ms)}</strong>
           </div>
           <div>
             <span>Confidence</span>
@@ -427,8 +487,12 @@ export default function OpsSentinelApp() {
             <i />
           </span>
           <div>
-            <strong>{running ? "Responding" : "Watching 3,248 assets"}</strong>
-            <small>{running ? "Agent mesh is active" : "Last sweep 12 seconds ago"}</small>
+            <strong>{running ? "Responding" : "Live intelligence ready"}</strong>
+            <small>
+              {running
+                ? "Agent mesh is active"
+                : `${integrationStatus.youcom === "live" ? "You.com connected" : "Fallback ready"} · on-demand`}
+            </small>
           </div>
         </div>
       </div>
@@ -517,6 +581,7 @@ export default function OpsSentinelApp() {
       <ResponseWorkspace
         result={result}
         approvalState={approvalState}
+        approvalReceipt={approvalReceipt}
         onDecision={recordDecision}
         onExport={exportReport}
         history={history}

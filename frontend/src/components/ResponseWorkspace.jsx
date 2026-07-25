@@ -16,6 +16,7 @@ const fallbackComponents = ["source signal", "service dependency", "release pipe
 export default function ResponseWorkspace({
   result,
   approvalState,
+  approvalReceipt,
   onDecision,
   onExport,
   history,
@@ -23,7 +24,7 @@ export default function ResponseWorkspace({
 }) {
   const components =
     result?.threat_summary?.affected_components?.slice(0, 3) || fallbackComponents;
-  const impactCount = result ? Math.max(components.length + 2, 5) : 0;
+  const impactCount = result ? components.length : 0;
 
   return (
     <section className="response-workspace">
@@ -33,7 +34,7 @@ export default function ResponseWorkspace({
           <h2>Blast radius & control plane</h2>
         </div>
         <div className="workspace-summary">
-          <span><CircleDot size={11} /> {impactCount} mapped assets</span>
+          <span><CircleDot size={11} /> {impactCount} mapped components</span>
           <span><ShieldCheck size={11} /> Policy OPS-P1 enforced</span>
         </div>
       </div>
@@ -74,9 +75,9 @@ export default function ResponseWorkspace({
           </div>
 
           <div className="impact-metrics">
-            <div><span>Services exposed</span><strong>{result ? "03" : "00"}</strong></div>
-            <div><span>Users protected</span><strong>{result ? "48.2K" : "—"}</strong></div>
-            <div><span>Estimated loss avoided</span><strong>{result ? "$4.2M" : "—"}</strong></div>
+            <div><span>Affected components</span><strong>{result ? impactCount.toString().padStart(2, "0") : "00"}</strong></div>
+            <div><span>Evidence sources</span><strong>{result?.citations?.length || "—"}</strong></div>
+            <div><span>Risk score</span><strong>{result ? result.threat_summary.severity_score.toFixed(1) : "—"}</strong></div>
             <div><span>Rollback depth</span><strong>{result ? "1 build" : "—"}</strong></div>
           </div>
         </section>
@@ -121,8 +122,11 @@ export default function ResponseWorkspace({
               </button>
             </div>
             <div className="approval-audit">
-              <span><Clock3 size={11} /> SLA: 04:32 remaining</span>
-              <span>Signed operator decision</span>
+              <span>
+                <Clock3 size={11} />
+                {approvalReceipt?.audit_id || "Awaiting operator decision"}
+              </span>
+              <span>{approvalReceipt?.status || "Not signed"}</span>
             </div>
           </section>
 

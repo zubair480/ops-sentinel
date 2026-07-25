@@ -181,6 +181,13 @@ footer span {
   color: #c4cedc;
 }
 
+.integration-pill small {
+  color: #66758a;
+  font-family: var(--font-mono);
+  font-size: 6px;
+  letter-spacing: 0.08em;
+}
+
 .status-dot,
 .forge-state i,
 .live-chip i {
@@ -189,6 +196,17 @@ footer span {
   box-shadow: 0 0 9px rgba(76, 218, 161, 0.75);
   height: 5px;
   width: 5px;
+}
+
+.status-dot.mode-demo,
+.status-dot.mode-check {
+  background: var(--amber);
+  box-shadow: 0 0 9px rgba(244, 184, 95, 0.72);
+}
+
+.status-dot.mode-off {
+  background: var(--red);
+  box-shadow: 0 0 9px rgba(255, 107, 125, 0.72);
 }
 
 .system-state {
