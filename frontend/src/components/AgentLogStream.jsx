@@ -49,7 +49,14 @@ export default function AgentLogStream({ logs, running }) {
                   </div>
                   <div className="timeline-content">
                     <div className="timeline-meta">
-                      <span>{item.label}</span>
+                      <span>
+                        {item.label}
+                        {log.run_id && (
+                          <em className="run-correlation">
+                            {log.run_id} / {String(log.sequence).padStart(2, "0")}
+                          </em>
+                        )}
+                      </span>
                       <time>
                         <Clock3 size={11} />
                         {log.time}

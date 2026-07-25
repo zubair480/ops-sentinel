@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 
@@ -16,10 +17,37 @@ class ThreatAnalyst:
         if isinstance(analysis, dict):
             merged = self._merge_validated(analysis, baseline)
             merged["inference_mode"] = "youcom_research"
+            merged["indicators"] = self._extract_indicators(
+                search_result["citations"], merged
+            )
             return merged
 
         baseline["inference_mode"] = "evidence_rules"
+        baseline["indicators"] = self._extract_indicators(
+            search_result["citations"], baseline
+        )
         return baseline
+
+    @staticmethod
+    def _extract_indicators(
+        citations: list[dict[str, str]], analysis: dict[str, Any]
+    ) -> list[dict[str, str]]:
+        """Extract defensible observables from evidence without inventing IOCs."""
+
+        text = " ".join(
+            [
+                str(analysis.get("title", "")),
+                str(analysis.get("summary", "")),
+                *[
+                    f"{citation.get('title', '')} {citation.get('snippet', '')}"
+                    for citation in citations
+                ],
+            ]
+        )
+        cves = sorted(
+            {value.upper() for value in re.findall(r"\bCVE-\d{4}-\d{4,8}\b", text, re.I)}
+        )
+        return [{"type": "CVE", "value": value} for value in cves[:8]]
 
     @staticmethod
     def _baseline(
@@ -50,6 +78,11 @@ class ThreatAnalyst:
                     "Q4 launch",
                 ],
                 "confidence": 0.91,
+                "risk_tags": [
+                    "vendor concentration",
+                    "export control",
+                    "lead-time exposure",
+                ],
                 "evidence": evidence,
             }
 
@@ -68,6 +101,11 @@ class ThreatAnalyst:
                 "linux/amd64",
             ],
             "confidence": 0.98,
+            "risk_tags": [
+                "software supply chain",
+                "dependency compromise",
+                "remote access",
+            ],
             "evidence": evidence,
         }
 

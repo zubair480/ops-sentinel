@@ -6,9 +6,11 @@ import asyncio
 import json
 import os
 import uuid
+from collections import deque
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
@@ -61,15 +63,15 @@ STAGES = {
     },
     "action": {
         "kind": "action",
-        "message": "Pipeline rollback triggered and remediation PR staged.",
-        "detail": "Opsera Forge · human approval gate preserved",
+        "message": "Preparing a guarded rollback and remediation PR payload…",
+        "detail": "Opsera Forge · execution mode verified after dispatch",
     },
 }
 
 app = FastAPI(
     title="OpsSentinel API",
     description="Autonomous incident response and supply-chain intelligence.",
-    version="1.0.0",
+    version="1.1.0",
 )
 
 allowed_origins = [
@@ -91,6 +93,7 @@ youcom = YouComService()
 analyst = ThreatAnalyst()
 remediator = RemediationPlanner()
 opsera = OpseraService()
+audit_events: deque[dict] = deque(maxlen=100)
 
 
 class IncidentRequest(BaseModel):
@@ -101,20 +104,96 @@ class IncidentRequest(BaseModel):
 class MitigationDecision(BaseModel):
     incident_hash: str
     decision: Literal["approved", "held"]
+    incident_id: str | None = None
+    run_id: str | None = None
 
 
 def _event(name: str, data: dict) -> str:
     return f"event: {name}\ndata: {json.dumps(data, separators=(',', ':'))}\n\n"
 
 
+def _record_audit(
+    event_type: str,
+    *,
+    incident_id: str | None,
+    run_id: str | None,
+    detail: str,
+) -> dict:
+    record = {
+        "audit_id": f"AUD-{uuid.uuid4().hex[:8].upper()}",
+        "event_type": event_type,
+        "incident_id": incident_id,
+        "run_id": run_id,
+        "detail": detail,
+        "recorded_at": datetime.now(UTC).isoformat(),
+    }
+    audit_events.appendleft(record)
+    return record
+
+
+def _provenance(search_result: dict) -> dict:
+    domains: list[str] = []
+    for citation in search_result["citations"]:
+        domain = urlparse(citation["url"]).netloc.removeprefix("www.")
+        if domain and domain not in domains:
+            domains.append(domain)
+    return {
+        "citation_count": len(search_result["citations"]),
+        "source_domains": domains[:8],
+        "source_mode": search_result["source_mode"],
+        "reasoning_mode": search_result.get("reasoning_mode", "evidence_rules"),
+        "fallback_active": search_result["source_mode"] != "live",
+        "retrieved_at": datetime.now(UTC).isoformat(),
+    }
+
+
+def _incident_result(
+    *,
+    incident_id: str,
+    run_id: str,
+    incident_type: IncidentType,
+    search_result: dict,
+    threat_summary: dict,
+    action_payload: dict,
+    opsera_response: dict,
+    started: datetime,
+) -> dict:
+    return {
+        "incident_id": incident_id,
+        "run_id": run_id,
+        "incident_type": incident_type,
+        "source_mode": search_result["source_mode"],
+        "query": search_result["query"],
+        "citations": search_result["citations"],
+        "provenance": _provenance(search_result),
+        "threat_summary": threat_summary,
+        "opsera": {
+            "request": action_payload,
+            "response": opsera_response,
+        },
+        "telemetry": {
+            "elapsed_ms": int((datetime.now(UTC) - started).total_seconds() * 1000),
+            "completed_at": datetime.now(UTC).isoformat(),
+        },
+    }
+
+
 async def execute_incident(
     incident_type: IncidentType, custom_query: str | None = None
 ) -> dict:
     started = datetime.now(UTC)
+    incident_id = f"INC-{uuid.uuid4().hex[:6].upper()}"
+    run_id = f"RUN-{uuid.uuid4().hex[:8].upper()}"
     query = (
         custom_query.strip()
         if incident_type == "custom" and custom_query and custom_query.strip()
         else SEARCH_QUERIES[incident_type]
+    )
+    _record_audit(
+        "INCIDENT_STARTED",
+        incident_id=incident_id,
+        run_id=run_id,
+        detail=f"{incident_type} evidence sweep started",
     )
     search_result = await asyncio.to_thread(
         youcom.research,
@@ -126,24 +205,26 @@ async def execute_incident(
     )
     action_payload = remediator.plan(incident_type, threat_summary)
     opsera_response = await asyncio.to_thread(opsera.dispatch, action_payload)
-    elapsed_ms = int((datetime.now(UTC) - started).total_seconds() * 1000)
-
-    return {
-        "incident_id": f"INC-{uuid.uuid4().hex[:6].upper()}",
-        "incident_type": incident_type,
-        "source_mode": search_result["source_mode"],
-        "query": search_result["query"],
-        "citations": search_result["citations"],
-        "threat_summary": threat_summary,
-        "opsera": {
-            "request": action_payload,
-            "response": opsera_response,
-        },
-        "telemetry": {
-            "elapsed_ms": elapsed_ms,
-            "completed_at": datetime.now(UTC).isoformat(),
-        },
-    }
+    result = _incident_result(
+        incident_id=incident_id,
+        run_id=run_id,
+        incident_type=incident_type,
+        search_result=search_result,
+        threat_summary=threat_summary,
+        action_payload=action_payload,
+        opsera_response=opsera_response,
+        started=started,
+    )
+    _record_audit(
+        "INCIDENT_ANALYZED",
+        incident_id=incident_id,
+        run_id=run_id,
+        detail=(
+            f"{threat_summary['severity_label']} finding with "
+            f"{len(search_result['citations'])} cited sources"
+        ),
+    )
+    return result
 
 
 @app.get("/health")
@@ -163,6 +244,13 @@ def integration_status() -> dict:
             "youcom_research" if bool(os.getenv("YOUCOM_API_KEY")) else "evidence_rules"
         ),
         "opsera": "live" if bool(os.getenv("OPSERA_WEBHOOK_URL")) else "demo",
+        "api_version": app.version,
+        "capabilities": [
+            "live_research",
+            "indicator_extraction",
+            "policy_guardrails",
+            "audit_receipts",
+        ],
     }
 
 
@@ -173,16 +261,31 @@ async def simulate_incident(request: IncidentRequest) -> dict:
 
 @app.post("/api/mitigations/decision")
 async def mitigation_decision(request: MitigationDecision) -> dict:
+    status = (
+        "APPROVED_FOR_PRODUCTION"
+        if request.decision == "approved"
+        else "HELD_FOR_REVIEW"
+    )
+    receipt = _record_audit(
+        "MITIGATION_DECISION",
+        incident_id=request.incident_id,
+        run_id=request.run_id,
+        detail=f"{status} for incident hash {request.incident_hash}",
+    )
     return {
         "incident_hash": request.incident_hash,
         "decision": request.decision,
-        "status": (
-            "APPROVED_FOR_PRODUCTION"
-            if request.decision == "approved"
-            else "HELD_FOR_REVIEW"
-        ),
-        "audit_id": f"AUD-{uuid.uuid4().hex[:8].upper()}",
-        "recorded_at": datetime.now(UTC).isoformat(),
+        "status": status,
+        **receipt,
+    }
+
+
+@app.get("/api/audit")
+def audit_trail(limit: int = Query(default=20, ge=1, le=100)) -> dict:
+    return {
+        "events": list(audit_events)[:limit],
+        "session_scope": True,
+        "retention_note": "In-memory demo audit; connect durable storage for production.",
     }
 
 
@@ -192,7 +295,18 @@ async def stream_incident(
     query: str = Query(default="", max_length=280),
 ) -> StreamingResponse:
     async def events():
-        yield _event("stage", STAGES["search"])
+        incident_id = f"INC-{uuid.uuid4().hex[:6].upper()}"
+        run_id = f"RUN-{uuid.uuid4().hex[:8].upper()}"
+        _record_audit(
+            "INCIDENT_STARTED",
+            incident_id=incident_id,
+            run_id=run_id,
+            detail=f"{incident_type} streaming evidence sweep started",
+        )
+        yield _event(
+            "stage",
+            {**STAGES["search"], "run_id": run_id, "sequence": 1},
+        )
         await asyncio.sleep(0.45)
 
         started = datetime.now(UTC)
@@ -207,38 +321,48 @@ async def stream_incident(
             scenario=incident_type,
         )
 
-        yield _event("stage", STAGES["analysis"])
+        yield _event(
+            "stage",
+            {**STAGES["analysis"], "run_id": run_id, "sequence": 2},
+        )
         await asyncio.sleep(0.45)
         threat_summary = await asyncio.to_thread(
             analyst.analyze, incident_type, search_result
         )
 
-        yield _event("stage", STAGES["plan"])
+        yield _event(
+            "stage",
+            {**STAGES["plan"], "run_id": run_id, "sequence": 3},
+        )
         await asyncio.sleep(0.45)
         action_payload = remediator.plan(incident_type, threat_summary)
 
-        yield _event("stage", STAGES["action"])
+        yield _event(
+            "stage",
+            {**STAGES["action"], "run_id": run_id, "sequence": 4},
+        )
         await asyncio.sleep(0.45)
         opsera_response = await asyncio.to_thread(opsera.dispatch, action_payload)
 
-        result = {
-            "incident_id": f"INC-{uuid.uuid4().hex[:6].upper()}",
-            "incident_type": incident_type,
-            "source_mode": search_result["source_mode"],
-            "query": search_result["query"],
-            "citations": search_result["citations"],
-            "threat_summary": threat_summary,
-            "opsera": {
-                "request": action_payload,
-                "response": opsera_response,
-            },
-            "telemetry": {
-                "elapsed_ms": int(
-                    (datetime.now(UTC) - started).total_seconds() * 1000
-                ),
-                "completed_at": datetime.now(UTC).isoformat(),
-            },
-        }
+        result = _incident_result(
+            incident_id=incident_id,
+            run_id=run_id,
+            incident_type=incident_type,
+            search_result=search_result,
+            threat_summary=threat_summary,
+            action_payload=action_payload,
+            opsera_response=opsera_response,
+            started=started,
+        )
+        _record_audit(
+            "INCIDENT_ANALYZED",
+            incident_id=incident_id,
+            run_id=run_id,
+            detail=(
+                f"{threat_summary['severity_label']} finding with "
+                f"{len(search_result['citations'])} cited sources"
+            ),
+        )
         yield _event("complete", result)
 
     return StreamingResponse(

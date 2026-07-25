@@ -15,6 +15,7 @@ import IncidentTrigger from "./components/IncidentTrigger";
 import AgentLogStream from "./components/AgentLogStream";
 import CitationCard from "./components/CitationCard";
 import OpseraPipelineCard from "./components/OpseraPipelineCard";
+import IncidentDossier from "./components/IncidentDossier";
 import ResponseWorkspace from "./components/ResponseWorkspace";
 
 const demoData = {
@@ -115,33 +116,89 @@ const demoData = {
 };
 
 const buildDemoResult = (scenario, customQuery = "") => {
-  if (scenario !== "custom") return demoData[scenario];
-  const base = demoData.zero_day;
+  const base = scenario === "supply_chain" ? demoData.supply_chain : demoData.zero_day;
+  const result =
+    scenario !== "custom"
+      ? base
+      : {
+          ...base,
+          incident_id: `INC-${Math.random().toString(16).slice(2, 8).toUpperCase()}`,
+          incident_type: "custom",
+          query: customQuery,
+          threat_summary: {
+            ...base.threat_summary,
+            title: "Operator-defined threat signal investigated",
+            severity_score: 9.2,
+            severity_label: "CRITICAL",
+            confidence: 0.94,
+            summary:
+              `OpsSentinel evaluated the operator signal “${customQuery.trim()}” against ` +
+              "the available advisory evidence and mapped the likely exposure to the production dependency graph.",
+            affected_components: [
+              "signal-under-review",
+              "prod-auth-service",
+              "release pipeline",
+            ],
+          },
+          opsera: {
+            request: {
+              ...base.opsera.request,
+              target_pipeline: "security-investigation",
+              incident_hash: Math.random().toString(16).slice(2, 14),
+            },
+            response: {
+              ...base.opsera.response,
+              build_id: `OPS-${Math.floor(Math.random() * 800000 + 100000)}`,
+            },
+          },
+        };
+  const sourceDomains = [
+    ...new Set(result.citations.map((citation) => new URL(citation.url).hostname)),
+  ];
+  const supplyChain = scenario === "supply_chain";
   return {
-    ...base,
-    incident_id: `INC-${Math.random().toString(16).slice(2, 8).toUpperCase()}`,
-    incident_type: "custom",
-    query: customQuery,
+    ...result,
+    incident_type: result.incident_type || scenario,
+    run_id: `RUN-${Math.random().toString(16).slice(2, 10).toUpperCase()}`,
+    provenance: {
+      citation_count: result.citations.length,
+      source_domains: sourceDomains,
+      source_mode: "demo",
+      reasoning_mode: "evidence_rules",
+      fallback_active: true,
+      retrieved_at: new Date().toISOString(),
+    },
+    telemetry: {
+      elapsed_ms: 2480,
+      completed_at: new Date().toISOString(),
+    },
     threat_summary: {
-      ...base.threat_summary,
-      title: "Operator-defined threat signal investigated",
-      severity_score: 9.2,
-      severity_label: "CRITICAL",
-      confidence: 0.94,
-      summary:
-        `OpsSentinel evaluated the operator signal “${customQuery.trim()}” against ` +
-        "the available advisory evidence and mapped the likely exposure to the production dependency graph.",
-      affected_components: ["signal-under-review", "prod-auth-service", "release pipeline"],
+      risk_tags: supplyChain
+        ? ["vendor concentration", "export control", "lead-time exposure"]
+        : ["software supply chain", "dependency compromise", "remote access"],
+      indicators: supplyChain ? [] : [{ type: "CVE", value: "CVE-2024-3094" }],
+      ...result.threat_summary,
     },
     opsera: {
+      ...result.opsera,
       request: {
-        ...base.opsera.request,
-        target_pipeline: "security-investigation",
-        incident_hash: Math.random().toString(16).slice(2, 14),
-      },
-      response: {
-        ...base.opsera.response,
-        build_id: `OPS-${Math.floor(Math.random() * 800000 + 100000)}`,
+        guardrails: {
+          require_human_approval_for_production: true,
+          preserve_audit_log: true,
+          max_rollback_depth: 1,
+        },
+        remediation_steps: supplyChain
+          ? [
+              "Pause affected hardware release train",
+              "Route demand to approved alternate suppliers",
+              "Stage procurement manifest update for approval",
+            ]
+          : [
+              "Rollback to last known-good dependency lockfile",
+              "Rebuild and rescan the production image",
+              "Stage a remediation pull request for approval",
+            ],
+        ...result.opsera.request,
       },
     },
   };
@@ -165,8 +222,8 @@ const stageMessages = [
   },
   {
     kind: "action",
-    message: "Pipeline rollback triggered and remediation PR staged.",
-    detail: "Verified payload · human approval gate preserved",
+    message: "Opsera-compatible rollback payload staged safely.",
+    detail: "Simulation fallback · human approval gate preserved",
   },
 ];
 
@@ -324,6 +381,8 @@ export default function OpsSentinelApp() {
           kind: data.kind,
           message: data.message,
           detail: data.detail,
+          run_id: data.run_id,
+          sequence: data.sequence,
           id: `${Date.now()}-${receivedStages}`,
           time: now(),
         },
@@ -375,10 +434,12 @@ export default function OpsSentinelApp() {
         const response = await fetch(`${getApiBase()}/api/mitigations/decision`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            incident_hash: result.opsera.request.incident_hash,
-            decision,
-          }),
+            body: JSON.stringify({
+              incident_hash: result.opsera.request.incident_hash,
+              decision,
+              incident_id: result.incident_id,
+              run_id: result.run_id,
+            }),
         });
         if (!response.ok) throw new Error(`Decision request failed: ${response.status}`);
         const receipt = await response.json();
@@ -577,6 +638,8 @@ export default function OpsSentinelApp() {
           </section>
         </aside>
       </div>
+
+      <IncidentDossier result={result} />
 
       <ResponseWorkspace
         result={result}

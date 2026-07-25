@@ -14,9 +14,13 @@ provider is required, and every integration has a deterministic fallback.
   disruption.
 - A free-form investigation mode for operator-supplied threat signals.
 - A live server-sent event stream that shows each agent handoff.
+- Correlation IDs and sequence numbers across every agent handoff.
 - Severity, affected-component, and confidence scoring.
+- Evidence-only CVE extraction, source provenance, and risk classification.
+- A generated remediation playbook with visible policy checks.
 - A predicted dependency blast-radius map with impact metrics.
 - A human approval/hold gate before production execution.
+- Backend-issued audit receipts and a session audit API.
 - Downloadable evidence packages and device-local response history.
 - Clickable evidence cards for every material claim.
 - An auditable `PIPELINE_ROLLBACK` action with a stable incident hash.
@@ -28,7 +32,7 @@ provider is required, and every integration has a deterministic fallback.
 ```text
 Browser
   └─ React dashboard
-       └─ FastAPI / Cloudflare Worker event stream
+       └─ FastAPI server-sent event stream
             ├─ You.com Research → agentic analysis + normalized citations
             ├─ Threat Analyst → typed, evidence-grounded finding
             ├─ Remediation Planner → guarded rollback payload
@@ -54,6 +58,7 @@ ops-sentinel/
 │   │   │   ├── Header.jsx
 │   │   │   ├── IncidentTrigger.jsx
 │   │   │   ├── AgentLogStream.jsx
+│   │   │   ├── IncidentDossier.jsx
 │   │   │   ├── CitationCard.jsx
 │   │   │   └── OpseraPipelineCard.jsx
 │   │   ├── App.jsx
@@ -62,7 +67,8 @@ ops-sentinel/
 │   ├── index.html
 │   ├── package.json
 │   └── vite.config.js
-├── app/                      # Cloudflare/Sites production wrapper
+├── Dockerfile                # Unified Render deployment
+├── render.yaml               # Render Blueprint
 ├── .env.example
 └── README.md
 ```
@@ -172,6 +178,12 @@ Use `incident_type=custom&query=...` for a free-form investigation.
 
 Records an `approved` or `held` operator decision against an incident hash and
 returns signed audit metadata.
+
+### `GET /api/audit`
+
+Returns the most recent incident and mitigation audit events for the current
+service session. The prototype uses bounded in-memory retention and labels that
+scope in its response.
 
 ## Credits needed
 
